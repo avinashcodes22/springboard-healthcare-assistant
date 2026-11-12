@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: springboard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: healthcare_db
+      POSTGRES_USER: healthcare_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - springboard_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthcare_user -d healthcare_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  springboard_pgdata:
