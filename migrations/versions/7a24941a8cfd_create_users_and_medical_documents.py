@@ -1,7 +1,7 @@
 """create users and medical documents
 
 Revision ID: 7a24941a8cfd
-Revises: 
+Revises:
 Create Date: 2026-11-12 14:29:45.738130
 
 """

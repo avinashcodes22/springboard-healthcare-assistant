@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -128,4 +128,3 @@ def login(
         "expires_in": settings.access_token_expire_minutes * 60,
         "user": user,
     }
-
