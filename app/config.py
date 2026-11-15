@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AI-Driven Healthcare Assistance Platform"
+    app_version: str = "0.4.0"
 
     uploads_dir: Path = PROJECT_ROOT / "uploads"
     max_upload_size_bytes: int = 10 * 1024 * 1024

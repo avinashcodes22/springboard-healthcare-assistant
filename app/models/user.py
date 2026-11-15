@@ -11,7 +11,7 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "role IN ('patient', 'healthcare_worker')",
+            "role IN ('patient', 'healthcare_worker', 'administrator')",
             name="ck_users_valid_role",
         ),
     )

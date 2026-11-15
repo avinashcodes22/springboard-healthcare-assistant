@@ -1,10 +1,12 @@
 # AI-Driven Healthcare Assistance Platform for Rural Communities
 
-A multilingual healthcare communication and document-management backend for
-rural communities. The platform provides secure patient and healthcare-worker
-accounts, personal medical document storage, patient medical history, and a
-curated health-education repository. It is a **Module 1 prototype** for
-Springboard Internship 7.0.
+A multilingual healthcare communication and document-management platform for
+rural communities. The platform provides distinct React experiences for
+patients, healthcare workers and administrators, backed by a FastAPI service
+with secure accounts, personal medical document storage, patient medical
+history, care coordination, administrative oversight and a curated
+health-education repository. It is a **Module 1 prototype** for Springboard
+Internship 7.0.
 
 > **Clinical safety notice:** This is a software prototype. It does not
 > diagnose, prescribe, or make autonomous clinical decisions. Health content
@@ -13,16 +15,28 @@ Springboard Internship 7.0.
 
 ## 1. Project Overview
 
-The backend exposes a versioned REST API built with FastAPI. Patients can
-register, authenticate, manage their profile, upload medical documents, review
-their own document history, and read published multilingual health education.
-Healthcare workers can register, but their accounts remain inactive until an
-authorized operator approves them. Approved workers can publish and manage
-general health-education content.
+The backend exposes a versioned REST API built with FastAPI. The frontend is a
+responsive React single-page application with an English/Telugu patient
+experience, a task-focused worker workspace and a structured administration
+workspace.
+
+- **Patients** register, authenticate, manage their profile, upload medical
+  documents, review their own document history, and read published
+  multilingual health education.
+- **Healthcare workers** register, but their accounts remain inactive until an
+  administrator approves them. Approved workers can publish general
+  health-education content and access only the patients explicitly assigned to
+  them. They can review assigned-patient documents and maintain non-clinical
+  follow-up coordination records.
+- **Administrators** are provisioned through a controlled server-side CLI. They
+  manage non-administrator account status, approve or revoke workers, create
+  patient-worker assignments, moderate health content, review platform
+  analytics and monitor API/database health.
 
 Documents are stored on the local filesystem with server-generated UUID
-filenames. Metadata is stored in PostgreSQL. Access to every document is
-restricted to its owner.
+filenames. Metadata is stored in PostgreSQL. Patient document endpoints are
+owner-only; approved workers can download documents only for patients assigned
+to them. Administrator actions are recorded in an audit log.
 
 ## 2. Problem Statement
 
@@ -38,11 +52,14 @@ needs while avoiding unsafe automated clinical decision-making.
 
 ## 3. Project Objectives
 
-- Provide secure patient and healthcare-worker registration and login.
-- Enforce role-based access and healthcare-worker approval.
-- Store medical documents safely with ownership checks.
+- Provide secure patient, healthcare-worker and administrator access.
+- Enforce role-based access, worker approval and patient-worker assignment
+  boundaries.
+- Store medical documents safely with ownership and assignment checks.
 - Provide a patient-accessible document history.
 - Provide a multilingual, curated health-education repository.
+- Provide administrator oversight for users, workforce, content and platform
+  health.
 - Validate all input and reject unsafe or unsupported file uploads.
 - Preserve an auditable, migration-controlled PostgreSQL schema.
 - Provide automated tests for all core Module 1 workflows.
@@ -62,6 +79,10 @@ needs while avoiding unsafe automated clinical decision-making.
 | Validation | Pydantic v2 / pydantic-settings |
 | File uploads | `python-multipart`, local filesystem |
 | Testing | pytest, httpx, FastAPI TestClient |
+| Frontend | React 18, TypeScript 5.7, Vite 6 |
+| Frontend routing | React Router 6 |
+| Frontend icons | Lucide React |
+| Styling | Hand-written responsive CSS design system |
 | Containerization | Docker Desktop / Docker Compose |
 
 ## 5. Architecture Overview
@@ -74,18 +95,21 @@ Client
 FastAPI application (app/main.py)
   |
   +-- Routes
-  |     +-- /api/auth        registration and login
-  |     +-- /api/users       profile and medical history
-  |     +-- /api/documents   upload, list, download, delete
-  |     +-- /api/health-content  published education repository
+  |     +-- /api/auth           registration and login
+  |     +-- /api/users          profile and patient medical history
+  |     +-- /api/documents      patient-only document management
+  |     +-- /api/health-content published education repository
+  |     +-- /api/worker         assigned patients, document access, follow-ups
+  |     +-- /api/admin          users, workers, assignments, content, analytics
   |
   +-- Security layer
   |     +-- Argon2 password hashing
   |     +-- JWT issuance and validation
-  |     +-- Current-user and healthcare-worker dependencies
+  |     +-- Patient, healthcare-worker and administrator dependencies
   |
   +-- Services
   |     +-- Document validation and UUID file storage
+  |     +-- Administrator provisioning and audit logging
   |
   +-- SQLAlchemy models and sessions
   |
@@ -93,6 +117,9 @@ FastAPI application (app/main.py)
         +-- users
         +-- medical_documents
         +-- health_contents
+        +-- worker_patient_assignments
+        +-- follow_ups
+        +-- admin_audit_logs
         +-- alembic_version
 
 Local filesystem
@@ -104,8 +131,11 @@ Key design decisions:
 - Uploaded files are never served statically.
 - Original filenames are sanitized and are never used as storage paths.
 - Stored filenames are UUID-based and are never returned by the API.
-- Document access is always filtered by `owner_id`.
-- Healthcare-worker approval is an operator-only command, not a public API.
+- Patient document access is always filtered by `owner_id`.
+- Worker document access requires an explicit administrator-created assignment.
+- Administrator accounts are provisioned only through a controlled CLI command,
+  never through public registration or promotion of existing accounts.
+- Frontend role hiding is backed by server-side role and resource checks.
 
 ## 6. Project Folder Structure
 
@@ -116,42 +146,68 @@ Healthcare-Assistant/
 │   ├── database.py               Engine, session factory, Base, get_db
 │   ├── main.py                   FastAPI app, routers and health checks
 │   ├── models/
-│   │   ├── user.py               User, role and approval flags
+│   │   ├── user.py               User, roles and approval flags
 │   │   ├── medical_document.py   Document metadata and categories
-│   │   └── health_content.py     Health education content
+│   │   ├── health_content.py     Health education content
+│   │   ├── assignment.py         Worker-patient care assignments
+│   │   ├── follow_up.py          Non-clinical follow-up coordination
+│   │   └── audit_log.py          Administrator audit trail
 │   ├── routes/
 │   │   ├── auth.py               Registration and login
-│   │   ├── users.py              Profile and medical history
-│   │   ├── documents.py          Secure document management
-│   │   └── health_content.py     Health education repository
+│   │   ├── users.py              Profile and patient medical history
+│   │   ├── documents.py          Patient-only document management
+│   │   ├── health_content.py     Health education repository
+│   │   ├── worker.py             Assigned patients, document access, follow-ups
+│   │   └── admin.py              Administration and monitoring
 │   ├── schemas/
 │   │   ├── auth.py               Auth request/response schemas
 │   │   ├── user.py               Profile schemas
 │   │   ├── document.py           Document and history schemas
-│   │   └── health_content.py     Content schemas and validation
+│   │   ├── health_content.py     Content schemas and validation
+│   │   ├── worker.py             Worker patient and follow-up schemas
+│   │   └── admin.py              Administration schemas
 │   ├── security/
 │   │   ├── auth.py               Argon2 hashing and JWT creation
-│   │   └── dependencies.py       Authentication/role dependencies
+│   │   └── dependencies.py       Patient/worker/administrator dependencies
 │   ├── services/
 │   │   ├── document_storage.py   File validation and safe storage
-│   │   └── worker_approval.py    Operator-only worker approval logic
+│   │   ├── worker_approval.py    Legacy operator worker approval logic
+│   │   ├── admin_provisioning.py Controlled administrator creation
+│   │   └── admin_audit.py        Transactional administrator audit entries
 │   └── utils/
 │       └── language.py           Language code normalization
 ├── migrations/
 │   ├── env.py
 │   └── versions/
 │       ├── 7a24941a8cfd_create_users_and_medical_documents.py
-│       └── b1f2c3d4e5a6_add_health_content_and_document_categories.py
+│       ├── b1f2c3d4e5a6_add_health_content_and_document_categories.py
+│       └── c4d5e6f7a8b9_add_administrator_assignments_followups.py
 ├── scripts/
-│   └── approve_healthcare_worker.py
+│   ├── approve_healthcare_worker.py
+│   └── provision_administrator.py
+├── frontend/                     React + TypeScript + Vite client
+│   ├── src/
+│   │   ├── api/                  Typed API client and endpoints
+│   │   ├── components/           UI, layout, brand and library components
+│   │   ├── context/              Authentication and locale providers
+│   │   ├── i18n/                 English/Telugu interface dictionary
+│   │   ├── pages/                Public, auth, patient, worker and admin screens
+│   │   ├── styles/global.css     SAHAAYA design system
+│   │   ├── App.tsx               Role-aware application routes
+│   │   └── main.tsx              React entry point
+│   ├── .env.example              Safe frontend environment template
+│   ├── package.json
+│   └── vite.config.ts
 ├── tests/
-│   ├── conftest.py               Isolated SQLite DB and upload fixtures
+│   ├── conftest.py               Isolated SQLite DB and user fixtures
 │   ├── test_main.py              Service and database health checks
 │   ├── test_auth.py              Authentication and patient profiles
 │   ├── test_healthcare_workers.py Worker registration and authorization
 │   ├── test_documents.py         Upload, validation, ownership, deletion
 │   ├── test_history.py           Patient document history
-│   └── test_health_content.py    Content repository and visibility
+│   ├── test_health_content.py    Content repository and visibility
+│   ├── test_admin.py             Admin authorization, approval, analytics
+│   └── test_worker_management.py Assignment isolation and follow-ups
 ├── uploads/                      Local document storage (gitignored)
 ├── alembic.ini
 ├── compose.yaml
@@ -279,7 +335,7 @@ Migration policy for this project:
 - Existing tables, records, Docker volumes, and migrations are preserved.
 - Destructive resets are not permitted.
 
-Current migration head: `b1f2c3d4e5a6`.
+Current migration head: `c4d5e6f7a8b9`.
 
 ## 11. Backend Startup Instructions
 
@@ -294,6 +350,56 @@ Production-style local run:
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+## 11.1 Frontend Setup and Startup
+
+Prerequisites: Node.js 20+ and npm 10+.
+
+```powershell
+cd D:\Springboard\Healthcare-Assistant\frontend
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+The development server runs at `http://127.0.0.1:5173` by default. The backend
+must be running at `http://127.0.0.1:8000`, or `VITE_API_BASE_URL` must point
+to the correct API origin.
+
+Frontend validation commands:
+
+```powershell
+npm run typecheck
+npm run build
+npm run preview
+```
+
+The SAHAAYA client includes:
+
+- Public home, about, roadmap, and multilingual health-resource pages.
+- Patient registration, healthcare-worker registration, and shared sign-in.
+- Role-aware routing that redirects each account to its own workspace.
+- Patient dashboard, profile editor, document upload and record shelf.
+- Medical-history timeline with secure document downloads.
+- Authenticated and public health-library browsing.
+- Healthcare-worker dashboard, assigned-patient list and patient record review.
+- Worker follow-up monitoring with scheduled/completed/cancelled records.
+- Worker content desk with draft/published article management.
+- Worker translation-support roadmap without non-functional controls.
+- Administrator overview, user management, worker approval, assignments,
+  content moderation, analytics and system monitoring.
+- English and Telugu patient interface switching, responsive navigation,
+  accessible focus states, empty states, loading states, and error recovery.
+- Session storage for authentication; tokens are not persisted in local
+  storage.
+
+Frontend environment variables:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | No | API origin; defaults to `http://127.0.0.1:8000` |
+
+The frontend `.env` file is gitignored. Only `.env.example` is committed.
 
 ## 12. API Endpoint Documentation
 
@@ -338,7 +444,7 @@ Healthcare workers are created with `is_active = false` and
 | --- | --- | --- | --- |
 | GET | `/api/users/me` | Any active user | Retrieve own profile |
 | PATCH | `/api/users/me` | Any active user | Update name, phone, preferred language |
-| GET | `/api/users/me/history` | Any active user | Own document history in chronological order |
+| GET | `/api/users/me/history` | Patient | Own document history in chronological order |
 
 History items contain only metadata:
 
@@ -359,11 +465,11 @@ generated.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/api/documents/upload` | Authenticated user | Upload a PDF, JPEG, or PNG (max 10 MB) |
-| GET | `/api/documents` | Authenticated user | List own documents |
-| GET | `/api/documents/{document_id}` | Owner only | Retrieve own document metadata |
-| GET | `/api/documents/{document_id}/download` | Owner only | Download own document |
-| DELETE | `/api/documents/{document_id}` | Owner only | Delete own document and file |
+| POST | `/api/documents/upload` | Patient | Upload a PDF, JPEG, or PNG (max 10 MB) |
+| GET | `/api/documents` | Patient | List own documents |
+| GET | `/api/documents/{document_id}` | Patient owner | Retrieve own document metadata |
+| GET | `/api/documents/{document_id}/download` | Patient owner | Download own document |
+| DELETE | `/api/documents/{document_id}` | Patient owner | Delete own document and file |
 
 Categories: `prescription`, `discharge_summary`, `medical_report`.
 
@@ -399,7 +505,8 @@ Security behavior:
 
 Content statuses are `draft` and `published`. Drafts are never returned by
 public list or detail endpoints. Only active, approved healthcare workers may
-manage content, and they may manage only their own records.
+manage content, and they may manage only their own records. Administrators can
+change publication status and classification metadata from the admin API.
 
 Example content:
 
@@ -412,6 +519,49 @@ Example content:
   "status": "published"
 }
 ```
+
+### Healthcare-worker workspace
+
+All endpoints require an active, approved healthcare worker.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/worker/overview` | Assigned-patient, follow-up and content totals |
+| GET | `/api/worker/patients` | List only patients assigned to the worker |
+| GET | `/api/worker/patients/{patient_id}` | Assigned-patient summary and documents |
+| GET | `/api/worker/patients/{patient_id}/documents/{document_id}/download` | Download an assigned patient's document |
+| GET | `/api/worker/follow-ups` | List own follow-up records, optional `status` filter |
+| POST | `/api/worker/follow-ups` | Create a follow-up for an assigned patient |
+| PATCH | `/api/worker/follow-ups/{id}` | Update own follow-up date, status or note |
+| DELETE | `/api/worker/follow-ups/{id}` | Delete own follow-up record |
+
+Workers receive `404` for unassigned patients and documents that do not belong
+to an assigned patient. Follow-up records contain coordination information only;
+they are not diagnoses, prescriptions or clinical outcomes.
+
+### Administration
+
+All endpoints require an active administrator account.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/admin/overview` | Platform totals and health summary |
+| GET | `/api/admin/users` | List/filter users by role, status or search |
+| GET | `/api/admin/users/{id}` | Retrieve one account |
+| PATCH | `/api/admin/users/{id}/status` | Activate/deactivate a non-administrator |
+| GET | `/api/admin/workers` | List workers, filter by approval |
+| POST | `/api/admin/workers/{id}/approve` | Approve worker access |
+| POST | `/api/admin/workers/{id}/revoke` | Revoke worker access |
+| GET | `/api/admin/content` | List all content, including drafts |
+| PATCH | `/api/admin/content/{id}` | Update status, category or language |
+| GET | `/api/admin/analytics` | Real platform counts and distributions |
+| GET | `/api/admin/monitoring` | API/database health and application version |
+| GET | `/api/admin/assignments` | List patient-worker assignments |
+| POST | `/api/admin/assignments` | Assign a patient to an approved worker |
+| DELETE | `/api/admin/assignments/{id}` | Remove a care assignment |
+
+Administrator actions in these workflows are recorded in `admin_audit_logs`.
+Administrator accounts cannot be deactivated or modified through this API.
 
 ## 13. Authentication Instructions
 
@@ -493,6 +643,17 @@ Test isolation:
 
 Latest verified result: **39 passed**.
 
+Frontend validation:
+
+```powershell
+cd frontend
+npm run typecheck
+npm run build
+```
+
+The frontend is also checked in a desktop and mobile viewport against the live
+FastAPI service during integration verification.
+
 Covered areas:
 
 - Registration, duplicate email handling, login, invalid password.
@@ -554,7 +715,14 @@ Known limitations:
 | Document ownership and deletion | Implemented and tested |
 | Patient medical history | Implemented and tested |
 | Health content repository | Implemented and tested |
-| Automated test suite | 39 passing |
+| Backend automated test suite | 39 passing |
+| React frontend and routing | Implemented; typecheck and production build passing |
+| Responsive SAHAAYA design system | Implemented |
+| English/Telugu interface | Implemented for navigation, forms, and primary workflows |
+| Patient document and history screens | Implemented |
+| Public and authenticated health library | Implemented |
+| Healthcare-worker content desk | Implemented |
+| Frontend environment template | Completed |
 | README and environment template | Completed |
 | Git repository preparation | Local repository initialized; no remote push |
 
@@ -568,7 +736,7 @@ Known limitations:
 - Object storage (S3-compatible) and malware scanning.
 - Content review and clinical-verification workflow.
 - Pagination, search, and richer document metadata.
-- Mobile-friendly frontend for rural low-bandwidth environments.
+- Offline-first and installable PWA support for low-bandwidth environments.
 - Observability, structured audit logs, and deployment automation.
 
 ## Disclaimer

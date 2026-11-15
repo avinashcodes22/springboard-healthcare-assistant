@@ -10,6 +10,8 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
+from app.models import User
+from app.security.auth import hash_password
 
 DEFAULT_PASSWORD = "StrongPass123!"
 
@@ -146,6 +148,50 @@ def worker_factory(client, session_factory):
             "password": password,
             "id": worker_id,
             "registered": register_response.json(),
+        }
+
+    return create
+
+
+@pytest.fixture()
+def admin_factory(client, session_factory):
+    counter = itertools.count()
+
+    def create(
+        email: str | None = None,
+        password: str = DEFAULT_PASSWORD,
+    ) -> dict:
+        email = email or f"admin{next(counter)}@example.org"
+
+        with session_factory() as db:
+            user = User(
+                full_name="Synthetic Administrator",
+                email=email,
+                phone=None,
+                password_hash=hash_password(password),
+                role="administrator",
+                preferred_language="en",
+                is_active=True,
+                is_approved=True,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            user_id = user.id
+
+        login_response = client.post(
+            "/api/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert login_response.status_code == 200, login_response.text
+        token = login_response.json()["access_token"]
+
+        return {
+            "email": email,
+            "password": password,
+            "token": token,
+            "id": user_id,
+            "headers": {"Authorization": f"Bearer {token}"},
         }
 
     return create

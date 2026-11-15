@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import MedicalDocument, User
 from app.schemas.document import DocumentCategory, DocumentResponse
-from app.security.dependencies import get_current_user
+from app.security.dependencies import get_current_patient
 from app.services.document_storage import (
     DocumentStorageError,
     delete_stored_file,
@@ -64,7 +64,7 @@ async def upload_document(
     category: DocumentCategory = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     try:
         saved = await save_upload(file)
@@ -101,7 +101,7 @@ async def upload_document(
 @router.get("", response_model=list[DocumentResponse])
 def list_documents(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     documents = db.scalars(
         select(MedicalDocument)
@@ -119,7 +119,7 @@ def list_documents(
 def get_document(
     document_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     return _get_owned_document(document_id, current_user.id, db)
 
@@ -128,7 +128,7 @@ def get_document(
 def download_document(
     document_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     document = _get_owned_document(document_id, current_user.id, db)
 
@@ -157,7 +157,7 @@ def download_document(
 def delete_document(
     document_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     document = _get_owned_document(document_id, current_user.id, db)
     stored_filename = document.stored_filename

@@ -9,7 +9,10 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserProfileResponse,
 )
-from app.security.dependencies import get_current_user
+from app.security.dependencies import (
+    get_current_patient,
+    get_current_user,
+)
 
 router = APIRouter(prefix="/api/users", tags=["User Profiles"])
 
@@ -50,7 +53,7 @@ def update_profile(
 @router.get("/me/history", response_model=list[DocumentHistoryItem])
 def get_medical_history(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_patient),
 ):
     documents = db.scalars(
         select(MedicalDocument)
